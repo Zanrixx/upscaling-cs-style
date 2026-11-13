@@ -45,13 +45,28 @@ class RRDB(nn.Module):
 class RRDBNet(nn.Module):
     def __init__(self, num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32):
         super().__init__()
-        self.conv_first = nn.Conv2d(num_in_ch, num_feat, 3, 1, 1)
+        self.conv_first = nn.Conv2d(num_in_ch, num_feat, 3, 1, 1)                  # 3 → 64
+        self.body = nn.Sequential(*[RRDB(num_feat, num_grow_ch) for _ in range(num_block)])
+        self.conv_body = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
+        self.conv_up1 = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
+        self.conv_up2 = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
+        self.conv_hr = nn.Conv2d(num_feat, num_feat, 3, 1, 1)
+        self.conv_last = nn.Conv2d(num_feat, num_out_ch, 3, 1, 1)                  # 64 → 3
+        self.lrelu = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
         feat = self.conv_first(x)
-        return feat
+        body_feat = self.conv_body(self.body(feat))
+        feat = feat + body_feat                                                    # длинный остаток
+        feat = self.lrelu(self.conv_up1(F.interpolate(feat, scale_factor=2, mode="nearest")))
+        feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2, mode="nearest")))
+        out = self.conv_last(self.lrelu(self.conv_hr(feat)))
+        return out
 
 if __name__ == "__main__":
-    model = RRDBNet()
+    model = RRDBNet(num_block=2)                       
     x = torch.rand(1, 3, 32, 32)
-    print(model(x).shape)
+    print(model(x).shape)                               
+
+    full = RRDBNet()                                 
+    print(sum(p.numel() for p in full.parameters()))   
