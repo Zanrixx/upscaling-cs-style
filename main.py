@@ -1,38 +1,34 @@
+import time
+import shutil
 import torch
-from torch.utils.data import DataLoader
-from utils import *
-from dataset import SRdataset
-from generator import RRDBNet      #
-import torch.nn.functional as F
+from train_stage1 import train_stage1
 
 
 def main():
+    print("видеокарта:", torch.cuda.get_device_name(0))
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("устройство:", device) #cuba - видеокарта cpu - проц
+    for batch in [2, 4, 8]:
+        ckpt_dir = f"checkpoints/speed_bs{batch}"
+        shutil.rmtree(ckpt_dir, ignore_errors=True)   # иначе возьмёт старый чекпоинт и выйдет ложно быстро
+        torch.cuda.reset_peak_memory_stats()
+        t = time.time()
+        try:
+            train_stage1(
+                hr_dir="data/SRGD/Train/train-1080p",
+                lr_dir="data/SRGD/Train/train-270p",
+                ckpt_dir=ckpt_dir,
+                num_block=23, batch_size=batch, total_steps=100, every=100,
+                pretrained="weights/RRDB_PSNR_x4.pth",
+            )
+        except torch.cuda.OutOfMemoryError:
+            print(f"батч {batch}: не влез в память")
+            torch.cuda.empty_cache()
+            break
+        sec = time.time() - t
+        mem = torch.cuda.max_memory_allocated() / 1e9
+        print(f"батч {batch}: {sec:.0f} сек, {sec / 100:.2f} сек/шаг, "
+              f"{batch * 100 / sec:.1f} кадр/сек, пик памяти {mem:.1f} ГБ")
 
-
-    ds = SRdataset("data/TEST/hr", "data/TEST/lr")
-    loader = DataLoader(ds, batch_size=2, shuffle=True)
-    model = RRDBNet(num_block=2).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=2e-4, betas=(0.9, 0.999))
-
-
-    step = 0
-    for epoch in range(50):
-        for lr, hr in loader:
-            lr, hr = lr.to(device), hr.to(device)
-
-            sr = model(lr) #берётся плохое качество
-            loss = F.l1_loss(sr, hr) #sr-hr = [3 4 5 ...] находится среднее чем меньше тем лучше
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            step += 1
-            if step % 10 == 0:
-                print(f"эпоха {epoch}, шаг {step}, loss {loss.item()}")
 
 if __name__ == "__main__":
     main()

@@ -12,3 +12,15 @@ def psnr(a, b):
 if __name__ == "__main__":
     a = torch.rand(3, 64, 64)
     print(psnr(a, a))                                              
+
+
+def evaluate(model, loader, device):
+    model.eval()
+    total_psnr = 0.0
+    with torch.no_grad():
+        for lr_img, hr_img in loader:
+            lr_img, hr_img = lr_img.to(device), hr_img.to(device)
+            sr = model(lr_img).clamp(0, 1)
+            total_psnr += psnr(sr, hr_img)
+    model.train()
+    return total_psnr / len(loader)

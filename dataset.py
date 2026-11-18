@@ -31,10 +31,10 @@ def augment_pair(lr, hr):
 
 
 class SRdataset(Dataset):
-    def __init__(self, hr_folder, lr_folder):
+    def __init__(self, hr_folder, lr_folder, train=True):
         self.hr_images = list_images(hr_folder)
         self.lr_images = list_images(lr_folder)
-
+        self.train = train
         if len(self.hr_images) != len(self.lr_images):
             raise ValueError("Количество HR и LR изображений не совпадает")
         for h, l in zip(self.hr_images, self.lr_images):
@@ -45,8 +45,10 @@ class SRdataset(Dataset):
     def __getitem__(self, i):
         hr = Image.open(self.hr_images[i]).convert("RGB")
         lr = Image.open(self.lr_images[i]).convert("RGB")
-        lr, hr = random_pair(lr, hr)
-        lr, hr = augment_pair(lr, hr)
+        if self.train:
+            lr, hr = random_pair(lr, hr)
+            lr, hr = augment_pair(lr, hr)
+            return TF.to_tensor(lr), TF.to_tensor(hr) #переводит в тензоры [3, высота, ширина]
         return TF.to_tensor(lr), TF.to_tensor(hr) #переводит в тензоры [3, высота, ширина]
 
 if __name__ == "__main__":
