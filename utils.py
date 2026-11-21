@@ -19,6 +19,29 @@ def load_checkpoint(path, model, optimizer, device):
     optimizer.load_state_dict(state["optimizer"])
     return state["step"]
 
+def save_checkpoint_gan(path, gen, disc, opt_g, opt_d, step):
+    state = {
+        "gen": gen.state_dict(),
+        "disc": disc.state_dict(),
+        "opt_g": opt_g.state_dict(),
+        "opt_d": opt_d.state_dict(),
+        "step": step,
+    }
+    tmp = path + ".tmp"
+    torch.save(state, tmp)
+    os.replace(tmp, path)
+
+
+def load_checkpoint_gan(path, gen, disc, opt_g, opt_d, device):
+    state = torch.load(path, map_location=device)
+    gen.load_state_dict(state["gen"])
+    disc.load_state_dict(state["disc"])
+    opt_g.load_state_dict(state["opt_g"])
+    opt_d.load_state_dict(state["opt_d"])
+    return state["step"]
+
+
+
 def convert_keys(w):
     new = {}                       
     for k, v in w.items():          
